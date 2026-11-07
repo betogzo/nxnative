@@ -26,6 +26,7 @@
 #include "home_quit.h"
 #include "home_quit_mac.h"
 #include "ctrl_prompt.h"
+#include "pad_family_mac.h"
 #include <signal.h>
 #include <math.h>
 #include <sys/stat.h>

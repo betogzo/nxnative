@@ -20,6 +20,10 @@ A Switch 2 game: update v131072, SDK 22.2.8 (`Ounce`). Nintendo EPD's engine (se
 
 One [NUP container](../../../docs/development.md#the-packing-script-in-detail) of 25.6 GB: `scripts/pack_nup.py` unpacks it to `extract/v131072/`. The RomFS keeps most files as zstd with dictionaries from `Pack/ZsDic.pack.zs`. The movies are AV1.
 
+## Button mods
+
+`button_mods/make_mods.py` makes two RomFS overlays from the player's RomFS: `xbox/` and `ps/`, with the symbol font's button glyphs (E040-E04C), the HUD and ocarina button textures, and the "Controles básicos" controller art, its dark variant, shadow and callout lines (all three slots: handheld, grip, Pro). The labels follow position, as an Xbox or PlayStation pad is mapped by position (the right button is the game's A). The controller drawings `xbox.png` and `ps5.png` were drawn from photos of the real pads; nothing of the game is in the folder. The font must keep its original decompressed size (ResourceSizeTable), so the generator trims and pads it. The Mac app build runs the generator (it needs numpy, Pillow, scipy, shapely, fonttools and astc-encoder-py, and skips it without them) and packs the result as `Resources/button_mods`; the host picks a folder by the gamepad connected at start (`DM_BUTTON_MODS`, `DM_BUTTONS`). In test: not yet approved in play.
+
 ## Shaders
 
 - About 42,850 in [`shader_map.tsv`](shader_map.tsv), including 500 mesh and 20 task shaders in the BNSH programs ([Task and mesh shaders in BNSH](../../../docs/reference/shaders.md#task-and-mesh-shaders-in-bnsh-and-indirect-mesh-draws)), and the movie library's in an NDVE pack ([`nn::ndve`](../../../docs/reference/shaders.md#nnndves-movie-enhancement-file)).
