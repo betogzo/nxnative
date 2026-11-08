@@ -13,6 +13,7 @@
 > | **Larger model resource GPU heap** (`patches.py`) | Twice the configured `ModelResourceMgrGpuHeap`. With the original size the heap fills in Hyrule Field and the game crashes. |
 > | **PlayStation / Xbox button prompts** ([`button_mods/`](dm/games/0400486024DEC000/button_mods/)) | The build generates RomFS overlays with the button glyphs, HUD and ocarina icons and the controls screen art for a DualSense / DualShock and an Xbox pad. The host picks one from the controller connected at start (`DM_BUTTONS` / `DM_BOTOES` = `ps`, `xbox`, `nintendo` or `auto` forces it). No effect on performance. |
 > | **Build progress** ([`scripts/build_ipa_from_nsp.py`](scripts/build_ipa_from_nsp.py)) | The shader library packing and the pipeline archive stages show progress instead of looking frozen for minutes. |
+> | **`--icon <image>`** (`scripts/build_ipa_from_nsp.py`) | Gives the app an icon of your choice. A NUP usually has no icon data, which left the app's icon blank. |
 >
 > <img src="docs/images/flaviopz-oot-buttons.jpg" width="540" alt="Ocarina of Time's basic controls screen with PlayStation and Xbox buttons">
 >
@@ -95,6 +96,8 @@
 > | Mac app | a few minutes | the button mods are generated, then everything is packed and signed |
 >
 > Do not cancel the long stages. Later builds reuse the extraction, the shaders and the pipelines: a rebuild after a code change took 13 minutes.
+>
+> **App icon**: a NUP usually carries no icon, so the app's icon is blank. Add `--icon <image>` (JPEG, PNG, WebP or HEIC, any shape: it is cropped to its centre square and scaled to 1024x1024) to give it one, or set `ICON` at the top of `scripts/build_ipa_from_nsp.py` so every build uses it. Use a square image of at least 1024x1024 for a sharp icon. Only the icon is rebuilt: a few minutes when the rest is reused.
 >
 > **If the build stops with `3 damaged`**: some NUP dumps of v131072 hold three `.zs` textures that begin with zeros (`CmnTex_Map_Soil_FairyFountain_Floor_D_Nrm`, `RBake_Scene_GanonStage_G_2_1_d0_t0`, `Rock_WaterTemple_Gate_M_01_Nrm`). With them the game reloads the Kokiri Forest fairy fountain model forever and wastes about one CPU core for the whole session. Use another dump of the same version; `--allow-damaged` builds anyway, but you keep that cost.
 >

@@ -54,6 +54,7 @@ WORK_DIR = ''                           # the game's build folder (empty = <titl
 OUT_IPA = ''                            # output IPA (empty = <the profile's ipa> in the NSP folder); with PLATFORM 'mac-app' the output app (empty = <game name>.app in the NSP folder)
 APP_NAME = ''                           # app name on the home screen (empty = the game name in the base NSP)
 BUNDLE_ID = ''                          # the app's bundle ID (empty = saved per-game Xcode ID, else org.nxnative.<base game title ID in lowercase>)
+ICON = ''                               # an image for the app's icon, any format sips reads (JPEG, PNG, WebP, HEIC), any shape: cropped to its centre square (empty = the game's own icon from its control data)
 ROMFS = 'bundle'                        # 'bundle' = the game files go into the IPA (or the Xcode app), as always; 'separate' = they stay out (DM_COPY_ROMFS=NO): the IPA is small, and its rebuilds do not pack or send the RomFS again.
                                         #   Copy it to the phone once per game version with the scripts/push_romfs.sh command printed at the end (the app checks that the image is the one it was built for)
 PREPARE_XCODE = False                   # prepare a per-game Xcode project and add it to the workspace instead of packing an IPA; requires KEEP_EXTRACTED
@@ -2853,6 +2854,7 @@ def parse_args(argv):
     ap.add_argument('-o', '--out', help='output IPA, or app with --platform mac-app (default: <the profile\'s ipa>, or <game name>.app, in the NSP folder)')
     ap.add_argument('--app-name', help='app name on the home screen (default: the game name in the base NSP)')
     ap.add_argument('--bundle-id', help='the app\'s bundle ID (default: saved Xcode ID when preparing again, else org.nxnative.<base game title ID in lowercase>)')
+    ap.add_argument('--icon', help='an image for the app\'s icon instead of the game\'s own (JPEG, PNG, WebP, HEIC; cropped to its centre square, 1024x1024): for a NUP or a dump, which may carry none (default: the ICON setting, else the game\'s icon)')
     ap.add_argument('--romfs', choices=('bundle', 'separate'), help='bundle = the game files go into the IPA (default: the ROMFS setting, bundle); separate = they stay out of the IPA and the Xcode app: the build is small and fast, and the RomFS image '
                     'is copied to the phone once per game version with the scripts/push_romfs.sh command printed at the end (the app refuses an image of another version)')
     ap.add_argument('--prepare-xcode', action='store_true', help='prepare a per-game Xcode project and add it to the shared workspace instead of packing an IPA (requires keeping extracted files)')
@@ -2887,6 +2889,27 @@ def parse_args(argv):
     ap.add_argument('--progress', choices=('auto', 'bar', 'lines', 'json', 'off'), help='stage lines on the console: bar = one line per stage, redrawn in place; lines = a plain line every BEAT seconds; json = newline-delimited JSON events (no prompts); off = only each stage\'s start and end '
                     '(default: the PROGRESS setting; auto = bar in a terminal or Spyder, lines when the output goes to a file or a pipe)')
     return ap.parse_args(argv)
+
+
+def custom_icon(src, work):   # --icon / ICON: the image as the square 1024x1024 JPEG the app's icon is made from (pack_app.make_icns; the IPA's DM_ICON), cropped to its centre square
+    src = Path(os.path.expanduser(str(src))).resolve()
+    if not src.is_file(): raise BuildError(f'--icon: no image at {src}')
+    size = {}
+    probe = subprocess.run(['sips', '-g', 'pixelWidth', '-g', 'pixelHeight', str(src)], capture_output=True, text=True)
+    for line in probe.stdout.splitlines():
+        k, _, v = line.strip().partition(': ')
+        if k in ('pixelWidth', 'pixelHeight') and v.isdigit(): size[k] = int(v)
+    if len(size) != 2: raise BuildError(f'--icon: sips cannot read {src} as an image')
+    side = min(size.values())
+    out = work / 'app' / 'icon.jpg'; out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_name('icon.part.jpg')
+    for cmd in (['sips', '-s', 'format', 'jpeg', '-s', 'formatOptions', '95', '-c', str(side), str(side), str(src), '--out', str(tmp)],
+                ['sips', '-z', '1024', '1024', str(tmp), '--out', str(tmp)]):
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode: raise BuildError(f'--icon: sips failed on {src}: {(r.stderr or r.stdout).strip()}')
+    os.replace(tmp, out)
+    say(f'app icon: {src.name} ({size["pixelWidth"]}x{size["pixelHeight"]}, its centre {side}x{side} at 1024x1024)')
+    return out
 
 
 def say_game(app, name, version, bundle_id, out, icon):
@@ -3159,6 +3182,7 @@ def main(args=None):
     app_version = nacp.version(game / 'control.nacp') or nacp.version(base / 'control.nacp')
     if mac_pack and not (args.out or OUT_IPA): out_ipa = work.parent / f'{mac_app_name(app_name)}{"-provisional" if shadowed else ""}.app'
     icon = next((d / 'icon.jpg' for d in (game, base) if (d / 'icon.jpg').exists()), None)   # the game icon nx_extract saved from the control data (English, icon.jpg); the packed version's first, then the base game's
+    if getattr(args, 'icon', None) or ICON: icon = custom_icon(args.icon or ICON, work)   # the player's own image wins
     if (not mac or mac_pack) and getattr(args, 'in_programs', None) is None:   # an app is made, once: a program packed with the application's first (in_programs) is part of its app
         say_game(app, app_name, app_version or '1.0', bundle_id, None if prepare_xcode else out_ipa, icon)
     # the game language: Horizon gives the game one of the languages its control data lists (the packed version's, which an update may extend), so the one packed must be among them
