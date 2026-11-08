@@ -3,10 +3,14 @@
 from nso_asm import ADRP, B
 
 CUTS = {
+    # The movie player's choice of renderer: the branch it takes for a movie with no NDVE resource, always. Movies then go through its plain nv12decode program instead of nn::ndve's
+    # 22 compute shaders, which cost about 29 ms of GPU a frame on an M4 MacBook Air: with them the game cannot hold 60 fps during a movie, and its 60 fps movies, taken one picture
+    # per frame, play slow with the narration and subtitles behind (game.tsv movie_fps 60). The pictures are the movie's own 1080p ones, not enhanced
     # gsys::ModelResourceMgr's shared GPU heap (main+0xf3b720, from the config key ModelResourceMgrGpuHeap): 16 pools of 1 MiB, trimmed to fit, that hold every model's MatBlock and DisplayList.
     # In Hyrule Field it filled (no free byte, 16 of 16 pools used, probe at main+0x436f24); main+0x502050's false return is ignored and the next material buffer is built on a NULL pool (crash).
     # Twice the configured size (32 pools); costs 16 MiB. x23 = size + 0xfffff -> 2*size + 0xfffff
-    'e0f3ccfaf50065ae4ea01eb5aeb13b1a': [(0xf3b760, '3700088b', '1705018b', 'model resource GPU heap: twice the configured size')],
+    'e0f3ccfaf50065ae4ea01eb5aeb13b1a': [(0x3b5f51c, '680100b4', '0b000014', 'movie renderer: always plain, no NDVE'),
+                                         (0xf3b760, '3700088b', '1705018b', 'model resource GPU heap: twice the configured size')],
 }
 
 
@@ -50,6 +54,8 @@ def frame_step(ctx):
 FRAME_STEP = {'e0f3ccfaf50065ae4ea01eb5aeb13b1a': frame_step}
 
 BINDING = [
+    {'what': 'movie renderer: always the plain nv12decode path, no NDVE', 'now': 'build', 'goal': 'game', 'purpose': 'frame rate',
+     'why': "a branch in the game's own movie player: NDVE's 22 compute shaders cost about 29 ms of GPU a frame on an M4, so the 60 fps movies could not play at 60 and their narration fell behind"},
     {'what': 'gsys ModelResourceMgr shared GPU heap: twice the configured size', 'now': 'build', 'goal': 'game', 'purpose': 'memory',
      'why': "the size comes from the game's own config key ModelResourceMgrGpuHeap; in Hyrule Field its 16 pools filled and the next material buffer was built on a NULL pool (crash)"},
     {'what': 'frame step and render scale, as Tears of the Kingdom', 'now': 'build', 'goal': 'game', 'purpose': 'frame rate',

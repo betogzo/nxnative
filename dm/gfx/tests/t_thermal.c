@@ -49,7 +49,7 @@ int main(void) {
     const char *enabled = getenv("DM_THERMAL_CAP");
     if (enabled && !strcmp(enabled, "0")) {
         at(10, 3); CHECK("disabled: a critical device keeps the configured cap", nvn_game_fps() == 60);
-        movie(1); CHECK("disabled: the movie cap still applies", nvn_game_fps() == 30);
+        movie(1); CHECK("disabled: the movie cap still applies", nvn_game_fps() == DM_GAME_MOVIE_FPS);
         CHECK("disabled: thermal state is never read", atomic_load(&thermal_reads) == 0);
     } else {
         dm_fps_state = NULL; at(1, 2);
@@ -73,7 +73,7 @@ int main(void) {
 
         at(76, 3); CHECK("critical also holds 30 fps", nvn_game_fps() == 30);
         movie(1); at(77, 1); (void)nvn_game_fps();
-        at(107, 1); CHECK("a calm movie keeps its own 30 fps cap", nvn_game_fps() == 30);
+        at(107, 1); CHECK("a calm movie keeps its own cap (the profile's movie_fps, 30 by default)", nvn_game_fps() == DM_GAME_MOVIE_FPS);
         movie(0); CHECK("cooling during a movie needs no additional recovery hold", nvn_game_fps() == 60);
 
         at(108, 2); (void)nvn_game_fps();

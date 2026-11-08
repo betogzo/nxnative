@@ -17,6 +17,7 @@ A Switch 2 game: update v131072, SDK 22.2.8 (`Ounce`). Nintendo EPD's engine (se
 | `pad_layout full` | `game.tsv` | a 3D field and both sticks |
 | `fps_target 60` and the frame step in [`patches.py`](patches.py) | `patches.py`, `game.tsv` | the game steps its time by 60 / its integer fps, held at 60: below 60 fps it ran slow (45% speed at 27 fps on an M4 MacBook Air, speech drifting from the picture in cutscenes). The stub sets that fps from the host's step in whole vsyncs, as Tears of the Kingdom's; the launcher offers 30 and 60 |
 | render scale stub in `patches.py` | `patches.py` | scales the 3D views' size by `DM_RENDER_SCALE` (the launcher's Render scale, 0.5 to 1.0), which also fixes the size the dynamic resolution would move. At 1.0 the game keeps its own |
+| `movie_fps 60` and the plain movie renderer in `patches.py` | `game.tsv`, `patches.py` | the movies are 60 fps and the player takes one picture per frame, with the narration and subtitles in frame time: the frame step holds 60 while one plays (30 again after it), and the player skips NDVE's enhancement networks (about 29 ms of GPU a frame on an M4) so 60 holds ([A player that takes one picture per frame plays a faster movie slow](../../../docs/reference/movies.md#a-player-that-takes-one-picture-per-frame-plays-a-faster-movie-slow)) |
 | model resource GPU heap twice its configured size | `patches.py` | in Hyrule Field the game's 16 pools of 1 MiB filled and the next material buffer was built on a NULL pool (crash); 16 MiB more |
 
 ## Files

@@ -37,6 +37,7 @@ Every patch bound tighter than it could be: the open gaps, then the blocked, kep
 | `build` → `game` | interval controller: the lower bound and the GPU-time path | frame rate | gap | judgement | 1 | [The Legend of Zelda: Breath of the Wild](../../dm/games/01007EF00011E000/README.md) | sead::GameFrameworkNx's interval controller in this build; Tears of the Kingdom shares sead but not this code |
 | `build` → `game` | job pool wake-up | race | gap | judgement | 1 | [FINAL FANTASY TACTICS - The Ivalice Chronicles](../../dm/games/010038B015560000/README.md) | a lost wake-up in the game's own job pool, not a host or SDK difference |
 | `build` → `game` | malloc region 60 GB → 4 GB and its first arena | address space | gap | judgement | 1 | [Xenoblade Chronicles 3](../../dm/games/010074F013262000/README.md) | Monolith's own allocator; its constants span two functions (a multi-function rule). The cause, an iPhone's address space, is a platform limit |
+| `build` → `game` | movie renderer: always the plain nv12decode path, no NDVE | frame rate | gap | judgement | 1 | [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md) | a branch in the game's own movie player: NDVE's 22 compute shaders cost about 29 ms of GPU a frame on an M4, so the 60 fps movies could not play at 60 and their narration fell behind |
 | `build` → `game` | PhysX completion task release | race | gap | judgement | 1 | [The Legend of Zelda: Link's Awakening](../../dm/games/01006BB00C6F0000/README.md) | a lifetime race in the game's own completion task (its release slot serves this one vtable) |
 | `build` → `game` | render intervals, the forced-interval flag and the render-wait timeout | frame rate | gap | judgement | 1 | [Fire Emblem: Three Houses](../../dm/games/010055D009F78000/README.md) | the game's own tables, flag and timeout |
 | `build` → `game` | task ring push and pop barriers | race | gap | judgement | 1 | [Batman: Arkham Knight](../../dm/games/0100ACD0163D0000/README.md) | a data race in the game's own task ring |
@@ -90,7 +91,7 @@ Every patch bound tighter than it could be: the open gaps, then the blocked, kep
 | [Taiko Risshiden V DX](#taiko-risshiden-v-dx) | 1 | 0 | 0 | 2 | 0 | `game` |
 | [The Legend of Zelda: Breath of the Wild](#the-legend-of-zelda-breath-of-the-wild) | 7 | 0 | 43 | 0 | 0 | `build` → `game` ×2 |
 | [The Legend of Zelda: Link's Awakening](#the-legend-of-zelda-links-awakening) | 1 | 0 | 0 | 0 | 0 | `build` → `game` |
-| [The Legend of Zelda: Ocarina of Time](#the-legend-of-zelda-ocarina-of-time) | 1 | 0 | 2 | 0 | 0 | `build` → `game` ×2 |
+| [The Legend of Zelda: Ocarina of Time](#the-legend-of-zelda-ocarina-of-time) | 2 | 0 | 2 | 0 | 0 | `build` → `game` ×3 |
 | [The Legend of Zelda: Tears of the Kingdom](#the-legend-of-zelda-tears-of-the-kingdom) | 0 | 0 | 9 | 0 | 0 | `build` → `game` |
 | [Xenoblade Chronicles 3](#xenoblade-chronicles-3) | 6 | 0 | 0 | 0 | 0 | `build` → `game` |
 
@@ -598,10 +599,12 @@ Every patch bound tighter than it could be: the open gaps, then the blocked, kep
 
 [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md), `0400486024DEC000`, [patches.py](../../dm/games/0400486024DEC000/patches.py).
 
+- **`build` → `game`**, frame rate, gap, judgement: movie renderer: always the plain nv12decode path, no NDVE. A branch in the game's own movie player: NDVE's 22 compute shaders cost about 29 ms of GPU a frame on an M4, so the 60 fps movies could not play at 60 and their narration fell behind
 - **`build` → `game`**, memory, gap, judgement: gsys ModelResourceMgr shared GPU heap: twice the configured size. The size comes from the game's own config key ModelResourceMgrGpuHeap; in Hyrule Field its 16 pools filled and the next material buffer was built on a NULL pool (crash)
 - **`build` → `game`**, frame rate, blocked: frame-step stubs have no function-matched form yet, judgement: frame step and render scale, as Tears of the Kingdom. The game steps its time by 60 / its own fps value and stays locked at 60: at 27 fps on a Mac it ran at 45% speed
 
-- **v131072 `main`** `e0f3ccfa…` ([patches.py:9](../../dm/games/0400486024DEC000/patches.py#L9))
+- **v131072 `main`** `e0f3ccfa…` ([patches.py:12](../../dm/games/0400486024DEC000/patches.py#L12))
+  - cut `+0x3b5f51c`: movie renderer: always plain, no NDVE
   - cut `+0xf3b760`: model resource GPU heap: twice the configured size
   - frame step `+0x4dbd94`: frame step from the host in whole vsyncs (target 0 = original picker)
   - frame step `+0x654efc`: view render size x the host render scale (1.0 = original)

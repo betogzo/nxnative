@@ -382,6 +382,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - a movie stays black with the game waiting behind it, the decoder made and no `first picture` line (`Submit…InputBuffer` never called). Or `[RED] nn::codec VP9: Corrupt frame detected`, then `Keyframe / intra-only frame required`, each time about 6 s into a movie or after skipping in one. → [The submission-ready event counted as packets](../reference/movies.md#the-submission-ready-event-counted-as-packets)
 - a crash in `nn::codec::video::InitializeAv1DecoderByTransferMemory` when a movie starts. → [AV1 movies through SDK 22's decoder](../reference/movies.md#av1-movies-through-sdk-22s-decoder)
 - an abort in `nn::codec` (the SDK's own decoder client, which opens a service the host does not have) when a movie starts in a game built with SDK 19 for the Switch 2. → [SDK 19's decoder forms](../reference/movies.md#sdk-19s-decoder-forms)
+- Ocarina of Time's opening movie, below 60 fps, plays slowly; its music and effects run ahead of the picture, and the narration and subtitles fall behind them. The log has `[codec] AV1 decoder 1: end of stream after 9254 pictures` some 312 s after its first picture, for a movie of 154 s. → [A player that takes one picture per frame plays a faster movie slow](../reference/movies.md#a-player-that-takes-one-picture-per-frame-plays-a-faster-movie-slow)
 
 ## Audio
 

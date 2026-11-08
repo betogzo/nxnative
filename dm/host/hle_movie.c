@@ -119,6 +119,7 @@ static struct {
 #define MD_PLAYING_NS 500000000ull
 static _Atomic uint64_t g_movie_pic_ns;   // when a video decoder last handed out a picture (0 = stopped since)
 int dm_movie_playing(void) { uint64_t t = atomic_load_explicit(&g_movie_pic_ns, memory_order_relaxed); return t && now_ns() - t < MD_PLAYING_NS; }
+void dm_movie_picture(int playing) { atomic_store_explicit(&g_movie_pic_ns, playing ? now_ns() : 0, memory_order_relaxed); }   // nn::codec's decoders (hle_codec_video.c): a picture went out, or the movie ended
 static void *msym(const char *n) { void *p = guest_sym(n); if (!p) die("movie: missing SDK symbol %s", n); return p; }
 // SDK 1.3.1 exports mutable Buffer getters. Both overloads take the same this pointer.
 static void *buffer_getter(const char *const_name, const char *mutable_name) {

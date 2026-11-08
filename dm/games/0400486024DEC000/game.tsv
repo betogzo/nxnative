@@ -49,3 +49,5 @@ tex_dirty_upload	on
 # patches.py's frame step, as Tears of the Kingdom: the game steps its time by 60 / its integer fps, held at 60, so below 60 fps it ran slow. The host now steps it in whole vsyncs at this
 # target (DM_FPS_TARGET, the launcher's Frame rate: 30 halves the GPU work on a Mac that cannot hold 60)
 fps_target	60
+# The game's movies are 60 fps and its player takes one picture per frame; their narration and subtitles keep frame time too: the frame step holds 60 while one plays (patches.py's plain movie renderer makes that cheap)
+movie_fps	60

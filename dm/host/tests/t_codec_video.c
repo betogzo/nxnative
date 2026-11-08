@@ -10,7 +10,8 @@
 #include "../hle_movie_av1.c"
 #include <assert.h>
 
-uint64_t now_ns(void) { return 1; }
+static uint64_t g_now = 1;   // the host's clock as the pace test moves it; still elsewhere, so no picture is ever due early and every one goes out
+uint64_t now_ns(void) { return g_now; }
 __thread _Atomic int dm_host_work;   // hle_thread.c
 static struct { void *ev; int bound, set; } g_ev[16];
 static int ev_slot(void *e) { for (int i = 0; i < 16; i++) if (g_ev[i].ev == e) return i; for (int i = 0; i < 16; i++) if (!g_ev[i].ev) { g_ev[i].ev = e; return i; } abort(); }
@@ -232,6 +233,62 @@ int main(void) {
         uint32_t k[BLANK_MAX + 1]; for (int i = 0; i < BLANK_MAX; i++) assert((k[i] = dm_native_image_blank(32, 32)));
         assert(!(k[BLANK_MAX] = dm_native_image_blank(32, 32)));   // full
         for (int i = 0; i < BLANK_MAX; i++) dm_native_image_blank_free(k[i]);
+    }
+    {   // Movie pace (cv_pace): a 60 fps stream (pictures 16,667 us apart) taken one picture per 33.3 ms game frame goes out at its own pace, every other picture; taken
+        // every 16.7 ms, every picture; after a pause the next picture in order, not a jump; a stream that starts over (a loop) starts its clock again
+        _Alignas(16) static uint8_t dp[0x400], pp[0x40], mp[16 * 16 * 4];
+        cv_pref pr = h_cv_pref(16, 16, 3, 0); uint64_t psz, pal;
+        assert(!h_cv_poolsize(&psz, &pal, &pr, 1) && !h_cv_pool(pp, mp, psz, &pr, 1, 0));
+        assert(!h_cv_vp9init2(dp, 0x10000, 16, 16, 1, 1, 3)); cv_dec *q = cv_of(dp);
+        assert(!h_cv_vp9reg(dp, 0, pp, 0) && !h_cv_vp9acq(&idx, &sync, dp) && idx == 0);
+        int64_t next = 0;
+        #define PACE_FEED() do { while (q->nheld < CV_HOLD - 1) { assert(!h_cv_vp9submit(&id, dp, vp9, sizeof vp9, next, false)); next += 16667; } } while (0)
+        #define PACE_TAKE(out) do { h_cv_vp9rel(dp, 0, sync); assert(!h_cv_vp9acq(&idx, &sync, dp) && idx == 0 && h_gs_trywait(&sync)); \
+                                    assert(!h_cv_vp9props(&w, &h, &cw, &ch, &ts, &eos, dp, 0)); (out) = ts; } while (0)
+        g_now = 1000000000ull; PACE_FEED();
+        int64_t got;
+        for (int f = 0; f < 10; f++) { PACE_TAKE(got); assert(got == 2 * f * 16667); g_now += 33333333; PACE_FEED(); }   // 30 fps: pictures 0, 2, 4 ...
+        assert(q->paced == 9);
+        uint64_t paced = q->paced;
+        int64_t last = got;
+        PACE_TAKE(got); assert(got == last + 2 * 16667); last = got; g_now += 16666667; PACE_FEED();   // the first take after a 30 fps frame: the picture due is two on
+        assert(q->paced == paced + 1);
+        for (int f = 0; f < 10; f++) { PACE_TAKE(got); assert(got == last + 16667); last = got; g_now += 16666667; PACE_FEED(); }   // 60 fps: every picture
+        assert(q->paced == paced + 1);
+        g_now += 2000000000ull;   // a pause: the clock starts again at the next picture in order
+        PACE_TAKE(got); assert(got == last + 16667); last = got; g_now += 33333333; PACE_FEED();
+        PACE_TAKE(got); assert(got == last + 2 * 16667); last = got;
+        assert(!h_cv_vp9flush(dp) && q->nheld == 0 && !q->clk_on);   // a flush (a loop or a seek): the clock starts again with the next picture
+        next = 0; PACE_FEED(); g_now += 33333333;
+        PACE_TAKE(got); assert(got == 0);
+        #undef PACE_FEED
+        #undef PACE_TAKE
+        assert(!h_cv_vp9fin(dp)); h_cv_poolfin(pp); g_now = 1;
+    }
+    {   // The pace in other time units, learned from the pictures' spacing: a 50 fps stream timed in milliseconds (20 apart) and one in 90 kHz ticks (1,800 apart), taken every
+        // 40 ms, go out every other picture; one whose spacing fits no unit (3 ticks apart) keeps every picture
+        static const int64_t steps[] = {20, 1800, 3}; static const int every[] = {2, 2, 1};
+        for (int u = 0; u < 3; u++) {
+            _Alignas(16) static uint8_t du[0x400], pu[0x40], mu[16 * 16 * 4];
+            cv_pref pr = h_cv_pref(16, 16, 3, 0); uint64_t psz, pal;
+            assert(!h_cv_poolsize(&psz, &pal, &pr, 1) && !h_cv_pool(pu, mu, psz, &pr, 1, 0));
+            memset(du, 0, sizeof du);
+            assert(!h_cv_vp9init2(du, 0x10000, 16, 16, 1, 1, 3)); cv_dec *q = cv_of(du);
+            assert(!h_cv_vp9reg(du, 0, pu, 0) && !h_cv_vp9acq(&idx, &sync, du) && idx == 0);
+            int64_t next = 0, got;
+            g_now = 5000000000ull;
+            while (q->nheld < CV_HOLD - 1) { assert(!h_cv_vp9submit(&id, du, vp9, sizeof vp9, next, false)); next += steps[u]; }
+            for (int f = 0; f < 6; f++) {
+                h_cv_vp9rel(du, 0, sync); assert(!h_cv_vp9acq(&idx, &sync, du) && idx == 0 && h_gs_trywait(&sync));
+                assert(!h_cv_vp9props(&w, &h, &cw, &ch, &ts, &eos, du, 0)); got = ts;
+                assert(got == every[u] * f * steps[u]);
+                g_now += 40000000;
+                while (q->nheld < CV_HOLD - 1) { assert(!h_cv_vp9submit(&id, du, vp9, sizeof vp9, next, false)); next += steps[u]; }
+            }
+            assert(u == 2 ? q->ns_per_tick < 0 && !q->paced : q->ns_per_tick > 0 && q->paced == 5);
+            assert(!h_cv_vp9fin(du)); h_cv_poolfin(pu);
+        }
+        g_now = 1;
     }
     printf("t_codec_video: all passed\n");
     return 0;
