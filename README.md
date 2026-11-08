@@ -2,6 +2,8 @@
 
 > ## This fork: The Legend of Zelda: Ocarina of Time on Apple silicon Macs
 >
+> **This fork is focused on one game: the Switch 2 remake of The Legend of Zelda: Ocarina of Time, on the Mac.** Its changes were made and tested for that game only. Other games have not been tested with this fork: some changes (the movie pacing and the controller button overlay in the host, the build script's options) apply to every game and may behave differently there. For any other game, use the upstream project, [seedds/nxnative](https://github.com/seedds/nxnative).
+>
 > This is a personal fork of [seedds/nxnative](https://github.com/seedds/nxnative) (based on its `main` at `bd979ced`) with the changes needed to play **The Legend of Zelda: Ocarina of Time** (Switch 2, `0400486024DEC000`, update v131072) smoothly on Macs slower than the M6 the upstream profile was measured on. It was tested on a **MacBook Air M4 (16 GB, fanless)**. It is not affiliated with the upstream project or with Nintendo, and no game files are included: you need your own dump of the game.
 >
 > ### What this fork changes
@@ -14,6 +16,7 @@
 > | **PlayStation / Xbox button prompts** ([`button_mods/`](dm/games/0400486024DEC000/button_mods/)) | The build generates RomFS overlays with the button glyphs, HUD and ocarina icons and the controls screen art for a DualSense / DualShock and an Xbox pad. The host picks one from the controller connected at start (`DM_BUTTONS` / `DM_BOTOES` = `ps`, `xbox`, `nintendo` or `auto` forces it). No effect on performance. |
 > | **Build progress** ([`scripts/build_ipa_from_nsp.py`](scripts/build_ipa_from_nsp.py)) | The shader library packing and the pipeline archive stages show progress instead of looking frozen for minutes. |
 > | **`--icon <image>`** (`scripts/build_ipa_from_nsp.py`) | Gives the app an icon of your choice. A NUP usually has no icon data, which left the app's icon blank. |
+> | **Movies at 60 fps, in step with their narration** (`patches.py`, `movie_fps 60` in `game.tsv`, [`dm/host/hle_codec_video.c`](dm/host/hle_codec_video.c)) | The game's movies are 60 fps and its player takes one picture per frame, with the narration and subtitles counting frames too: at 30 fps the opening played at half speed, its sound and narration out of step. Movies now play at 60 while the game stays at 30: the player skips the NDVE enhancement networks (about 29 ms of GPU a frame on an M4), and the host holds 60 fps only while a movie plays. If a Mac still cannot take every picture, the host passes over the ones already behind the movie's clock (`DM_MOVIE_PACE=0` turns that off). |
 >
 > <img src="docs/images/flaviopz-oot-buttons.jpg" width="540" alt="Ocarina of Time's basic controls screen with PlayStation and Xbox buttons">
 >
