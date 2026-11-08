@@ -15,6 +15,9 @@ A Switch 2 game: update v131072, SDK 22.2.8 (`Ounce`). Nintendo EPD's engine (se
 | `tex_flush_upload on`, `tex_dirty_upload on` | `game.tsv` | as Tears of the Kingdom: the CPU writes the terrain tiles' height (R32F), blend and hole (RGBA8) maps into textures after creating them. Without the keys those textures stay zero: flat blue holes in the ground around the path with grass floating in them, and grey stone where the console shows dirt |
 | `shader_groups`, `shader_note` | `game.tsv` | shaders grouped as `/Shader/`, `/Effect/`, `/Lib/`, `/UI/` |
 | `pad_layout full` | `game.tsv` | a 3D field and both sticks |
+| `fps_target 60` and the frame step in [`patches.py`](patches.py) | `patches.py`, `game.tsv` | the game steps its time by 60 / its integer fps, held at 60: below 60 fps it ran slow (45% speed at 27 fps on an M4 MacBook Air, speech drifting from the picture in cutscenes). The stub sets that fps from the host's step in whole vsyncs, as Tears of the Kingdom's; the launcher offers 30 and 60 |
+| render scale stub in `patches.py` | `patches.py` | scales the 3D views' size by `DM_RENDER_SCALE` (the launcher's Render scale, 0.5 to 1.0), which also fixes the size the dynamic resolution would move. At 1.0 the game keeps its own |
+| model resource GPU heap twice its configured size | `patches.py` | in Hyrule Field the game's 16 pools of 1 MiB filled and the next material buffer was built on a NULL pool (crash); 16 MiB more |
 
 ## Files
 

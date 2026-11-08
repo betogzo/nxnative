@@ -1,0 +1,58 @@
+# The Legend of Zelda: Ocarina of Time (0400486024DEC000): the rewriter's patches of this game's own builds. dm/tools/patch_nso.py loads every profile's patches.py and applies those of a
+# module's NSO build ID; CUTS and FRAME_STEP as described there ("Registered patches"). From the flaviopz/nxnative fork (Flávio Pereira), measured on an M4 MacBook Air.
+from nso_asm import ADRP, B
+
+CUTS = {
+    # gsys::ModelResourceMgr's shared GPU heap (main+0xf3b720, from the config key ModelResourceMgrGpuHeap): 16 pools of 1 MiB, trimmed to fit, that hold every model's MatBlock and DisplayList.
+    # In Hyrule Field it filled (no free byte, 16 of 16 pools used, probe at main+0x436f24); main+0x502050's false return is ignored and the next material buffer is built on a NULL pool (crash).
+    # Twice the configured size (32 pools); costs 16 MiB. x23 = size + 0xfffff -> 2*size + 0xfffff
+    'e0f3ccfaf50065ae4ea01eb5aeb13b1a': [(0xf3b760, '3700088b', '1705018b', 'model resource GPU heap: twice the configured size')],
+}
+
+
+# Frame step and render scale, as Tears of the Kingdom's (same engine). The game steps its time by 60 / its integer fps (timing +0x58, read at main+0x3b4eadc and main+0x6e6c98; the clock
+# main+0x3b4e300) and keeps that at 60 whatever the frame rate: on a Mac that renders 27 fps it ran at 45% speed, and cutscene speech drifted from the picture. The stub replaces the picker's
+# tail call in main+0x4dbd60: integer fps = 60 / the host's step in vsyncs (state +0x20), and the vsyncs stepped are counted (+0x30). Target 0 (state +0, a float; any non-zero bits are a
+# target) or no step decided yet: the original picker
+def frame_step(ctx):
+    here, emit, site, put, S = ctx.here, ctx.emit, ctx.site, ctx.put, ctx.state
+    site(0x4dbd94, '73ccd914')
+    start = here(); emit(ADRP(16, here(), S))
+    for w in (0xb9400209,   # ldr w9,[x16]           target fps (float bits)
+              0x34000149,   # cbz w9,off (+10)       target 0: the original picker
+              0xb9402209,   # ldr w9,[x16,#0x20]     step in vsyncs
+              0x34000109,   # cbz w9,off (+8)        not decided yet
+              0x5280078a,   # mov w10,#60
+              0x1ac9094a,   # udiv w10,w10,w9
+              0xb900580a,   # str w10,[x0,#0x58]     integer fps
+              0xf9401a0b,   # ldr x11,[x16,#0x30]
+              0x8b29416b,   # add x11,x11,w9,uxtw
+              0xf9001a0b,   # str x11,[x16,#0x30]    vsyncs stepped
+              0xd65f03c0):  # ret
+        emit(w)
+    emit(B(here(), 0x3b4ef60))   # off: the original tail call
+    put(0x4dbd94, [B(0x4dbd94, start)], 'frame step from the host in whole vsyncs (target 0 = original picker)')
+    # The 3D views' size: main+0x654e70 computes it on every size path; the stub scales width and height (s0, s1) by the host's render scale (state +0x10) when it is above 0, which also
+    # fixes the size the game's dynamic resolution would move. 1.0 = the original
+    site(0x654efc, '4918231e')
+    start = here(); emit(ADRP(10, here(), S))
+    for w in (0xbd401146,   # ldr s6,[x10,#0x10]     render scale
+              0x1e2020c8,   # fcmp s6,#0.0
+              0x5400006d,   # b.le +12
+              0x1e260800,   # fmul s0,s0,s6
+              0x1e260821,   # fmul s1,s1,s6
+              0x1e231849):  # fdiv s9,s2,s3          the original instruction
+        emit(w)
+    emit(B(here(), 0x654f00))
+    put(0x654efc, [B(0x654efc, start)], 'view render size x the host render scale (1.0 = original)'); ctx.render_scale = 1
+
+
+FRAME_STEP = {'e0f3ccfaf50065ae4ea01eb5aeb13b1a': frame_step}
+
+BINDING = [
+    {'what': 'gsys ModelResourceMgr shared GPU heap: twice the configured size', 'now': 'build', 'goal': 'game', 'purpose': 'memory',
+     'why': "the size comes from the game's own config key ModelResourceMgrGpuHeap; in Hyrule Field its 16 pools filled and the next material buffer was built on a NULL pool (crash)"},
+    {'what': 'frame step and render scale, as Tears of the Kingdom', 'now': 'build', 'goal': 'game', 'purpose': 'frame rate',
+     'why': "the game steps its time by 60 / its own fps value and stays locked at 60: at 27 fps on a Mac it ran at 45% speed",
+     'blocked': 'frame-step stubs have no function-matched form yet'},
+]
