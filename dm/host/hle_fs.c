@@ -179,24 +179,27 @@ static int rom_overlay_path(const mount_t *m, const char *rest, char *out, size_
 // The rom mount's overlay folders: DM_ROMFS_OVERLAY (':' between folders), then a button mod. DM_BUTTON_MODS names a folder holding one RomFS overlay per controller family
 // (xbox/, ps/: a game's button icons and controller pictures redrawn, made by its profile's button_mods); the family of the gamepad connected at start picks one (dm_pad_family,
 // the Mac front end's; other builds have none and keep the game's own buttons), and DM_BUTTONS (or DM_BOTOES) = xbox | ps | nintendo forces it (auto: detect). Decided once.
-__attribute__((weak)) const char *dm_pad_family(void);
-static const char *rom_overlay_env(void) {
-    static char roots[4096]; static int done;
-    if (done) return roots[0] ? roots : NULL;
+__attribute__((weak)) const char *dm_pad_family(void) { return NULL; }   // the Mac front end's (pad_family_mac.h) replaces it; iOS and the tests have none
+static const char *button_mod_dir(void) {   // the button mod folder, decided once (the controller is read once per start); NULL for the game's own buttons
+    static char dir[1024]; static int done;
+    if (done) return dir[0] ? dir : NULL;
     done = 1;
-    const char *manual = getenv("DM_ROMFS_OVERLAY"), *mods = getenv("DM_BUTTON_MODS");
-    const char *want = getenv("DM_BUTTONS"); if (!want || !*want) want = getenv("DM_BOTOES");
-    if (manual) strlcpy(roots, manual, sizeof roots);
-    if (!mods || !*mods) return roots[0] ? roots : NULL;
+    const char *mods = getenv("DM_BUTTON_MODS"), *want = getenv("DM_BUTTONS"); if (!want || !*want) want = getenv("DM_BOTOES");
+    if (!mods || !*mods) return NULL;
     int forced = want && *want && strcmp(want, "auto");
-    const char *fam = forced ? want : dm_pad_family ? dm_pad_family() : NULL;
-    char dir[1024]; struct stat st;
+    const char *fam = forced ? want : dm_pad_family();
+    struct stat st;
     snprintf(dir, sizeof dir, "%s/%s", mods, fam ? fam : "");
-    if (fam && strcmp(fam, "nintendo") && !stat(dir, &st) && S_ISDIR(st.st_mode)) {
-        if (roots[0]) strlcat(roots, ":", sizeof roots);
-        strlcat(roots, dir, sizeof roots);
-        LOG("button mod: %s (%s) → %s", fam, forced ? "DM_BUTTONS" : "the connected controller", dir);
-    } else LOG("button mod: none, the game's own buttons (%s)", !fam ? "no Xbox or PlayStation controller connected at start" : !strcmp(fam, "nintendo") ? "a Nintendo controller" : "no folder for that family");
+    if (fam && strcmp(fam, "nintendo") && !stat(dir, &st) && S_ISDIR(st.st_mode)) { LOG("button mod: %s (%s) → %s", fam, forced ? "DM_BUTTONS" : "the connected controller", dir); return dir; }
+    LOG("button mod: none, the game's own buttons (%s)", !fam ? "no Xbox or PlayStation controller connected at start" : !strcmp(fam, "nintendo") ? "a Nintendo controller" : "no folder for that family");
+    dir[0] = 0; return NULL;
+}
+static const char *rom_overlay_env(void) {   // DM_ROMFS_OVERLAY as it is now (read at every mount, as before the button mods), then the button mod
+    static __thread char roots[4096];
+    const char *manual = getenv("DM_ROMFS_OVERLAY"), *mod = button_mod_dir();
+    roots[0] = 0;
+    if (manual) strlcpy(roots, manual, sizeof roots);
+    if (mod) { if (roots[0]) strlcat(roots, ":", sizeof roots); strlcat(roots, mod, sizeof roots); }
     return roots[0] ? roots : NULL;
 }
 // A path on an image mount: returns 1 with the mount in *mi and the entry in *k (-1 with errno set when there is none); 0 for a path on any other mount, or one an overlay folder (DM_ROMFS_OVERLAY) has, which then opens as a host file
