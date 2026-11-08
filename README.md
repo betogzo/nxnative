@@ -41,7 +41,32 @@
 > - An Apple silicon Mac with **macOS 26.6 or later**. Tested on a MacBook Air M4 with 16 GB; 16 GB is the practical minimum, because the game itself takes about 14.5 GB.
 > - **Xcode 27.2** (the shaders are built with its Metal compiler), **[Homebrew](https://brew.sh)** and an arm64 **Python 3.12 or newer** (3.14 recommended).
 > - **Your own dump of the game** as one `.nup` file (Switch 2, update v131072). No `prod.keys` are needed for a NUP.
-> - **About 130 GB of free space** on a fast drive: the NUP (25 GB), the extracted game (24 GB), the shader cache (about 30 GB), the pipeline archive (about 5 GB) and the app (about 37 GB). An external NVMe SSD over USB4 / Thunderbolt works well. Keep it off the internal drive if that is nearly full.
+> - **About 120 GB of free space** while building, and about 37 GB afterwards: see **Storage** just below. Most Macs do not have that much free on their internal drive, and they do not need to.
+>
+> #### Storage: build on an external drive
+>
+> The build keeps several large copies of the game at once. Measured here:
+>
+> | Item | Size | What it is |
+> |---|---|---|
+> | the game's `.nup` | 25.6 GB | your dump, the build's input |
+> | `0400486024DEC000_build/extract/` | about 24 GB | the game's files unpacked into one image the host reads quickly |
+> | `0400486024DEC000_build/shader/` | about 25-30 GB | about 42,800 shaders translated to Metal, and their compile cache |
+> | `0400486024DEC000_build/pso/` | about 8-10 GB | Metal pipelines compiled ahead of time |
+> | `The Legend of Zelda - Ocarina of Time.app` | about 37 GB | the app: the game's files, the shader libraries and the pipeline archive inside it |
+> | **at the peak of a build** | **about 120 GB** | on one APFS drive the app's files are cloned from the build folder rather than copied, so the space actually used is somewhat less |
+>
+> Mac internal drives are often small, so **build on an external SSD or hard drive**: put the clone, the Python environment, the `.nup` and the build folder there (steps 2 to 5 below use `/Volumes/SSD`). Nothing large goes on the internal drive: the save, your `env.txt` and a pipeline cache of a few hundred MB live in `~/Library/Application Support/nxnative/`.
+>
+> **Playing:** the app runs from the external drive if the drive is fast (an NVMe SSD over USB4 / Thunderbolt reads at 2-3 GB/s, close to an internal drive). If yours is slower (a hard drive, a SATA SSD in a USB enclosure, or a drive behind a shared hub), copy just the finished app to the internal drive and play from there; it needs about 37 GB free:
+>
+> ```
+> ditto "/Volumes/SSD/Ocarina of Time/The Legend of Zelda - Ocarina of Time.app" "/Applications/The Legend of Zelda - Ocarina of Time.app"
+> ```
+>
+> The first launch after a copy, macOS verifies the whole app once; let it finish. Saves are not inside the app, so they carry over.
+>
+> **After the build**, only the app is needed to play. Deleting the `0400486024DEC000_build` folder and the `.nup` frees space, but any later rebuild (an update of this fork, a different option) then needs the `.nup` again and redoes the shaders and pipelines (about 3 hours instead of minutes). If you can, keep both on the external drive.
 >
 > **1. Install the tools** (once), in Terminal:
 >
