@@ -17,6 +17,7 @@
 > | **Build progress** ([`scripts/build_ipa_from_nsp.py`](scripts/build_ipa_from_nsp.py)) | The shader library packing and the pipeline archive stages show progress instead of looking frozen for minutes. |
 > | **`--icon <image>`** (`scripts/build_ipa_from_nsp.py`) | Gives the app an icon of your choice. A NUP usually has no icon data, which left the app's icon blank. |
 > | **Movies at 60 fps, in step with their narration** (`patches.py`, `movie_fps 60` in `game.tsv`, [`dm/host/hle_codec_video.c`](dm/host/hle_codec_video.c)) | The game's movies are 60 fps and its player takes one picture per frame, with the narration and subtitles counting frames too: at 30 fps the opening played at half speed, its sound and narration out of step. Movies now play at 60 while the game stays at 30: the player skips the NDVE enhancement networks (about 29 ms of GPU a frame on an M4), and the host holds 60 fps only while a movie plays. If a Mac still cannot take every picture, the host passes over the ones already behind the movie's clock (`DM_MOVIE_PACE=0` turns that off). |
+> | **Pipeline archive mapped from an external drive** (upstream PR [#1817](https://github.com/seedds/nxnative/pull/1817) by Mariano Abad, picked ahead of its merge) | With the app on a USB drive, macOS read the 3 GB pipeline archive bundled with the app into memory for the whole run. It is now mapped: about 3 GB less memory (13.5 → 10 GB measured here), so an app on an external drive needs no copy to the internal one for memory's sake. |
 >
 > <img src="docs/images/flaviopz-oot-buttons.jpg" width="540" alt="Ocarina of Time's basic controls screen with PlayStation and Xbox buttons">
 >
@@ -31,8 +32,9 @@
 > | flaviopz fork | 26–30 fps, dips to 10–18 | CPU-bound: texture pool tables rebuilt 1,000 times (16.5 s in 3 min) |
 > | upstream `main` | 40–58 fps, uneven | GPU-bound, game at about 75% speed, 14.5 GB of memory with no headroom |
 > | **this fork**, 30 fps, render scale 0.85 (before upstream's full-resolution and frame-step changes) | **locked 30 fps** | frame p95 34 ms, 0–1 frames dropped per 300, GPU about 28 ms per frame, CPU about 130% |
+> | **this fork** now (upstream `37f076a5` + the changes above), 30 fps, full resolution | **30 fps**, 0 frames dropped in most 300-frame windows | GPU p50 22 / p95 28 ms per frame in a busy area, about 10 GB of memory; no flickering dark specks or pale patches (fixed upstream). Short freezes (0.5–1.2 s) the first time some foliage and shadow (task / mesh) pipelines appear after a new build: Metal compiles them then and keeps them, so they do not come back on later runs |
 >
-> Recommended launcher settings on a 16 GB M4: Console mode **Handheld**, Frame rate **30**, Dynamic resolution **off** (full resolution; turn it on if the frame rate drops), Encode thread **on**, Display **Fullscreen**, Game Mode left off (macOS Game Mode holds the GPU at its lowest clock). Close other apps while playing: the game takes about 14.5 GB.
+> Recommended launcher settings on a 16 GB M4: Console mode **Handheld**, Frame rate **30**, Dynamic resolution **off** (full resolution; turn it on if the frame rate drops), Encode thread **on**, Display **Fullscreen**, Game Mode left off (macOS Game Mode holds the GPU at its lowest clock). Close other apps while playing: the game takes about 10 GB.
 >
 > ### Building and playing it, step by step
 >
