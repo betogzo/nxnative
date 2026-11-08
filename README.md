@@ -1,5 +1,136 @@
 # nxnative
 
+> ## This fork: The Legend of Zelda: Ocarina of Time on Apple silicon Macs
+>
+> This is a personal fork of [seedds/nxnative](https://github.com/seedds/nxnative) (based on its `main` at `bd979ced`) with the changes needed to play **The Legend of Zelda: Ocarina of Time** (Switch 2, `0400486024DEC000`, update v131072) smoothly on Macs slower than the M6 the upstream profile was measured on. It was tested on a **MacBook Air M4 (16 GB, fanless)**. It is not affiliated with the upstream project or with Nintendo, and no game files are included: you need your own dump of the game.
+>
+> ### What this fork changes
+>
+> | Change | Why |
+> |---|---|
+> | **Frame step** ([`patches.py`](dm/games/0400486024DEC000/patches.py), `fps_target 60` in [`game.tsv`](dm/games/0400486024DEC000/game.tsv)) | The game advances its clock by 1/60 s per frame. Below 60 fps it ran in slow motion (about 75% speed at 45 fps) and cutscene speech drifted from the picture. The host now steps the game in whole vsyncs, so it keeps real-time speed at 30 fps. The launcher's **Frame rate** option (30 / 60) is back. |
+> | **Render scale** (`patches.py`) | Scales the 3D views by `DM_RENDER_SCALE`. The launcher's **Render scale** option is back. A fixed scale also stops the dynamic resolution from creating new GPU textures at every size change (0.5–1.7 GB per 300 frames at 1.0, about 6 MB at 0.85). |
+> | **Larger model resource GPU heap** (`patches.py`) | Twice the configured `ModelResourceMgrGpuHeap`. With the original size the heap fills in Hyrule Field and the game crashes. |
+> | **PlayStation / Xbox button prompts** ([`button_mods/`](dm/games/0400486024DEC000/button_mods/)) | The build generates RomFS overlays with the button glyphs, HUD and ocarina icons and the controls screen art for a DualSense / DualShock and an Xbox pad. The host picks one from the controller connected at start (`DM_BUTTONS` / `DM_BOTOES` = `ps`, `xbox`, `nintendo` or `auto` forces it). No effect on performance. |
+> | **Build progress** ([`scripts/build_ipa_from_nsp.py`](scripts/build_ipa_from_nsp.py)) | The shader library packing and the pipeline archive stages show progress instead of looking frozen for minutes. |
+>
+> <img src="docs/images/flaviopz-oot-buttons.jpg" width="540" alt="Ocarina of Time's basic controls screen with PlayStation and Xbox buttons">
+>
+> ### Credits
+>
+> **Flávio Pereira** ([flaviopz/nxnative](https://github.com/flaviopz/nxnative)) created the PlayStation and Xbox button mods (the generator and the controller drawings, and the picture above) and first found the frame step, render scale and model heap patches for this game. This fork ports them onto the current upstream code, fixes the generator's indentation error and lint findings, and leaves out his other changes, which upstream has since covered. Everything else is the upstream project's work: see [Acknowledgements](#acknowledgements).
+>
+> ### Results on a MacBook Air M4 (Kokiri Forest)
+>
+> | Build | Frame rate | Notes |
+> |---|---|---|
+> | flaviopz fork | 26–30 fps, dips to 10–18 | CPU-bound: texture pool tables rebuilt 1,000 times (16.5 s in 3 min) |
+> | upstream `main` | 40–58 fps, uneven | GPU-bound, game at about 75% speed, 14.5 GB of memory with no headroom |
+> | **this fork**, 30 fps, render scale 0.85 | **locked 30 fps** | frame p95 34 ms, 0–1 frames dropped per 300, GPU about 28 ms per frame, CPU about 130% |
+>
+> Recommended launcher settings on a 16 GB M4: Console mode **Handheld**, Frame rate **30**, Render scale **0.80–0.85**, Encode thread **on**, Display **Fullscreen**, Game Mode left off (macOS Game Mode holds the GPU at its lowest clock). Close other apps while playing: the game takes about 14.5 GB.
+>
+> ### Building and playing it, step by step
+>
+> **What you need**
+>
+> - An Apple silicon Mac with **macOS 26.6 or later**. Tested on a MacBook Air M4 with 16 GB; 16 GB is the practical minimum, because the game itself takes about 14.5 GB.
+> - **Xcode 27.2** (the shaders are built with its Metal compiler), **[Homebrew](https://brew.sh)** and an arm64 **Python 3.12 or newer** (3.14 recommended).
+> - **Your own dump of the game** as one `.nup` file (Switch 2, update v131072). No `prod.keys` are needed for a NUP.
+> - **About 130 GB of free space** on a fast drive: the NUP (25 GB), the extracted game (24 GB), the shader cache (about 30 GB), the pipeline archive (about 5 GB) and the app (about 37 GB). An external NVMe SSD over USB4 / Thunderbolt works well. Keep it off the internal drive if that is nearly full.
+>
+> **1. Install the tools** (once), in Terminal:
+>
+> ```
+> sudo xcode-select -s /Applications/Xcode.app
+> xcodebuild -downloadComponent MetalToolchain
+> brew install zstd glslang
+> brew install --cask dotnet-sdk
+> ```
+>
+> With several Xcode versions installed, name this one `Xcode-27.2.app` and select it with `sudo xcode-select -s /Applications/Xcode-27.2.app`.
+>
+> **2. Get this fork** on the drive you will build on (the examples use `/Volumes/SSD`; change it to yours):
+>
+> ```
+> cd /Volumes/SSD
+> git clone -b ocarina-of-time-mac https://github.com/betogzo/nxnative.git
+> cd nxnative
+> ```
+>
+> **3. Make a Python environment** for the build tools and the button generator:
+>
+> ```
+> python3 -m venv /Volumes/SSD/venv-nx
+> /Volumes/SSD/venv-nx/bin/pip install -r .github/requirements/tools.txt scipy shapely astc-encoder-py "backports.zstd; python_version < '3.14'"
+> ```
+>
+> `backports.zstd` is needed only below Python 3.14. `scipy`, `shapely` and `astc-encoder-py` are only for the PlayStation / Xbox buttons; without them the build skips the buttons with a warning and the game shows its own.
+>
+> **4. Put the game in a folder of its own**, for example:
+>
+> ```
+> /Volumes/SSD/Ocarina of Time/The Legend of Zelda Ocarina of Time [0400486024DEC000][v131072].nup
+> ```
+>
+> The build creates `0400486024DEC000_build/` (extracted files, shaders, logs) next to it and writes the app there too.
+>
+> **5. Build the Mac app.** Keep the Mac on power; `caffeinate -i` stops it from sleeping during the build:
+>
+> ```
+> cd /Volumes/SSD/nxnative
+> caffeinate -i /Volumes/SSD/venv-nx/bin/python scripts/build_ipa_from_nsp.py "/Volumes/SSD/Ocarina of Time/The Legend of Zelda Ocarina of Time [0400486024DEC000][v131072].nup" --platform mac-app
+> ```
+>
+> The stages, as seen on the MacBook Air M4:
+>
+> | Stage | First build | What happens |
+> |---|---|---|
+> | unpack | about 1 min | the NUP's RomFS becomes one image in `extract/` |
+> | check files | seconds | every `.zs` file must be a zstd stream (see below) |
+> | rewrite | about 1 min | the game's code is rewritten for the Mac, with this fork's patches |
+> | shader split + Mac shaders | about 2 hours | about 42,800 shaders translated to Metal; progress is shown |
+> | Mac host | under 1 min | the native host program |
+> | pipeline archive | about 1 hour | Metal pipelines compiled ahead of time; progress is shown |
+> | Mac app | a few minutes | the button mods are generated, then everything is packed and signed |
+>
+> Do not cancel the long stages. Later builds reuse the extraction, the shaders and the pipelines: a rebuild after a code change took 13 minutes.
+>
+> **If the build stops with `3 damaged`**: some NUP dumps of v131072 hold three `.zs` textures that begin with zeros (`CmnTex_Map_Soil_FairyFountain_Floor_D_Nrm`, `RBake_Scene_GanonStage_G_2_1_d0_t0`, `Rock_WaterTemple_Gate_M_01_Nrm`). With them the game reloads the Kokiri Forest fairy fountain model forever and wastes about one CPU core for the whole session. Use another dump of the same version; `--allow-damaged` builds anyway, but you keep that cost.
+>
+> **6. Open the app** from Finder: `The Legend of Zelda - Ocarina of Time.app` in the game's folder. The first time, macOS verifies the 37 GB app; let it finish. You can run it from the external drive.
+>
+> **7. Settings in the launcher** (the window before the game starts). Recommended on a 16 GB M4:
+>
+> | Setting | Value | Why |
+> |---|---|---|
+> | Console mode | Handheld | lower base resolution, the mode the profile was tested in |
+> | Frame rate | 30 | half the GPU work, steady pacing on a 60 Hz screen, correct game speed |
+> | Render scale | 0.80–0.85 | 0.85 uses about 28 of the 33 ms per frame on the M4; use 0.80 for long or warm sessions. Avoid 1.0: it keeps the game's dynamic resolution and its GPU texture churn |
+> | Encode thread | on | moves Metal encoding off the submit thread |
+> | Display mode | Fullscreen | the picture goes straight to the screen |
+> | Performance HUD | optional | shows fps, GPU time and memory |
+>
+> **8. Controllers.** Connect a DualSense, DualShock 4 or Xbox controller **before** opening the game: the buttons are chosen once, at start. To force a set, put one line in `~/Library/Application Support/nxnative/0400486024DEC000/env.txt`: `DM_BUTTONS=ps`, `DM_BUTTONS=xbox` or `DM_BUTTONS=nintendo` (`DM_BOTOES` works too).
+>
+> **9. Where things are**
+>
+> - Saves: `~/Library/Application Support/nxnative/0400486024DEC000/save`. They live outside the app, so rebuilding keeps them.
+> - Your switches: `~/Library/Application Support/nxnative/0400486024DEC000/env.txt`, one `KEY=value` per line, read on every start.
+> - Logs: `~/Library/Logs/nxnative/0400486024DEC000.log` and `.prev.log`. Only the last two runs are kept, so copy a log you want to keep before playing again.
+>
+> **10. Updating**: `git pull` in the `nxnative` folder, then run the same build command. Only what changed is rebuilt.
+>
+> **Tips**
+>
+> - Close other apps while playing. The game takes about 14.5 GB, and on a 16 GB Mac anything else pushes it into swap, which brings stutter and late textures.
+> - Leave macOS Game Mode off. The app turns it off on purpose: it holds the GPU at its lowest clock.
+> - Exclude the build drive from Spotlight (`sudo mdutil -i off /Volumes/SSD`, or System Settings → Spotlight → Search Privacy) so it does not index the build's files.
+> - If an external SSD disconnects during heavy writes, check its power. A drive sharing a bus-powered hub with other devices failed every write after about 200 MB here; plugged straight into the Mac, or behind a hub with its own power supply, it wrote 64 GB without an error.
+> - A fanless Mac lowers its clocks when hot. A hard surface, or a stand with air under it, helps it hold 30 fps in long sessions.
+>
+> The upstream README follows.
+
 Play your own Nintendo Switch games natively on iPhone and iPad. Bring your game (its NSP files) and your `prod.keys`; one script turns them into an IPA that you sideload.
 
 It is not an emulator: the game's own code runs directly on the Apple chip, with Switch graphics rebuilt on Metal. Nothing from any game is in this repository, and the project is not affiliated with Nintendo or any game publisher.
