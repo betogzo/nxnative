@@ -4,14 +4,14 @@
 >
 > **This fork is focused on one game: the Switch 2 remake of The Legend of Zelda: Ocarina of Time, on the Mac.** Its changes were made and tested for that game only. Other games have not been tested with this fork: some changes (the movie pacing and the controller button overlay in the host, the build script's options) apply to every game and may behave differently there. For any other game, use the upstream project, [seedds/nxnative](https://github.com/seedds/nxnative).
 >
-> This is a personal fork of [seedds/nxnative](https://github.com/seedds/nxnative) (based on its `main` at `bd979ced`) with the changes needed to play **The Legend of Zelda: Ocarina of Time** (Switch 2, `0400486024DEC000`, update v131072) smoothly on Macs slower than the M6 the upstream profile was measured on. It was tested on a **MacBook Air M4 (16 GB, fanless)**. It is not affiliated with the upstream project or with Nintendo, and no game files are included: you need your own dump of the game.
+> This is a personal fork of [seedds/nxnative](https://github.com/seedds/nxnative) (kept up to date with its `main`; last merged at `028a2631`) with the changes needed to play **The Legend of Zelda: Ocarina of Time** (Switch 2, `0400486024DEC000`, update v131072) smoothly on Macs slower than the M6 the upstream profile was measured on. It was tested on a **MacBook Air M4 (16 GB, fanless)**. It is not affiliated with the upstream project or with Nintendo, and no game files are included: you need your own dump of the game.
 >
 > ### What this fork changes
 >
+> Upstream now has its own frame step for this game (correct speed below 60 fps) and holds it at full resolution with a **Dynamic resolution** switch in the launcher; this fork uses those and adds the rest below.
+>
 > | Change | Why |
 > |---|---|
-> | **Frame step** ([`patches.py`](dm/games/0400486024DEC000/patches.py), `fps_target 60` in [`game.tsv`](dm/games/0400486024DEC000/game.tsv)) | The game advances its clock by 1/60 s per frame. Below 60 fps it ran in slow motion (about 75% speed at 45 fps) and cutscene speech drifted from the picture. The host now steps the game in whole vsyncs, so it keeps real-time speed at 30 fps. The launcher's **Frame rate** option (30 / 60) is back. |
-> | **Render scale** (`patches.py`) | Scales the 3D views by `DM_RENDER_SCALE`. The launcher's **Render scale** option is back. A fixed scale also stops the dynamic resolution from creating new GPU textures at every size change (0.5–1.7 GB per 300 frames at 1.0, about 6 MB at 0.85). |
 > | **Larger model resource GPU heap** (`patches.py`) | Twice the configured `ModelResourceMgrGpuHeap`. With the original size the heap fills in Hyrule Field and the game crashes. |
 > | **PlayStation / Xbox button prompts** ([`button_mods/`](dm/games/0400486024DEC000/button_mods/)) | The build generates RomFS overlays with the button glyphs, HUD and ocarina icons and the controls screen art for a DualSense / DualShock and an Xbox pad. The host picks one from the controller connected at start (`DM_BUTTONS` / `DM_BOTOES` = `ps`, `xbox`, `nintendo` or `auto` forces it). No effect on performance. |
 > | **Build progress** ([`scripts/build_ipa_from_nsp.py`](scripts/build_ipa_from_nsp.py)) | The shader library packing and the pipeline archive stages show progress instead of looking frozen for minutes. |
@@ -22,7 +22,7 @@
 >
 > ### Credits
 >
-> **Flávio Pereira** ([flaviopz/nxnative](https://github.com/flaviopz/nxnative)) created the PlayStation and Xbox button mods (the generator and the controller drawings, and the picture above) and first found the frame step, render scale and model heap patches for this game. This fork ports them onto the current upstream code, fixes the generator's indentation error and lint findings, and leaves out his other changes, which upstream has since covered. Everything else is the upstream project's work: see [Acknowledgements](#acknowledgements).
+> **Flávio Pereira** ([flaviopz/nxnative](https://github.com/flaviopz/nxnative)) created the PlayStation and Xbox button mods (the generator and the controller drawings, and the picture above) and first found the model heap and plain movie renderer patches for this game (and a frame step and render scale that upstream has since replaced with its own). This fork ports them onto the current upstream code, fixes the generator's indentation error and lint findings, and leaves out his other changes, which upstream has since covered. Everything else is the upstream project's work: see [Acknowledgements](#acknowledgements).
 >
 > ### Results on a MacBook Air M4 (Kokiri Forest)
 >
@@ -30,9 +30,9 @@
 > |---|---|---|
 > | flaviopz fork | 26–30 fps, dips to 10–18 | CPU-bound: texture pool tables rebuilt 1,000 times (16.5 s in 3 min) |
 > | upstream `main` | 40–58 fps, uneven | GPU-bound, game at about 75% speed, 14.5 GB of memory with no headroom |
-> | **this fork**, 30 fps, render scale 0.85 | **locked 30 fps** | frame p95 34 ms, 0–1 frames dropped per 300, GPU about 28 ms per frame, CPU about 130% |
+> | **this fork**, 30 fps, render scale 0.85 (before upstream's full-resolution and frame-step changes) | **locked 30 fps** | frame p95 34 ms, 0–1 frames dropped per 300, GPU about 28 ms per frame, CPU about 130% |
 >
-> Recommended launcher settings on a 16 GB M4: Console mode **Handheld**, Frame rate **30**, Render scale **0.80–0.85**, Encode thread **on**, Display **Fullscreen**, Game Mode left off (macOS Game Mode holds the GPU at its lowest clock). Close other apps while playing: the game takes about 14.5 GB.
+> Recommended launcher settings on a 16 GB M4: Console mode **Handheld**, Frame rate **30**, Dynamic resolution **off** (full resolution; turn it on if the frame rate drops), Encode thread **on**, Display **Fullscreen**, Game Mode left off (macOS Game Mode holds the GPU at its lowest clock). Close other apps while playing: the game takes about 14.5 GB.
 >
 > ### Building and playing it, step by step
 >
@@ -112,7 +112,7 @@
 > |---|---|---|
 > | Console mode | Handheld | lower base resolution, the mode the profile was tested in |
 > | Frame rate | 30 | half the GPU work, steady pacing on a 60 Hz screen, correct game speed |
-> | Render scale | 0.80–0.85 | 0.85 uses about 28 of the 33 ms per frame on the M4; use 0.80 for long or warm sessions. Avoid 1.0: it keeps the game's dynamic resolution and its GPU texture churn |
+> | Dynamic resolution | off | upstream holds the game at full resolution (1536x864) by default; turning it on lets the game lower its resolution when the GPU falls behind |
 > | Encode thread | on | moves Metal encoding off the submit thread |
 > | Display mode | Fullscreen | the picture goes straight to the screen |
 > | Performance HUD | optional | shows fps, GPU time and memory |
@@ -143,17 +143,9 @@ It is not an emulator: the game's own code runs directly on the Apple chip, with
 
 Switch 2 games have started too: [Donkey Kong Bananza](dm/games/040074A01BF12000/README.md), [Splatoon Raiders](dm/games/0400380020056000/README.md), [Fire Emblem Fortune's Weave](dm/games/04007EF01F8AE000/README.md), [Pokémon Pokopia](dm/games/0400A3A01EE4C000/README.md), [Hyrule Warriors: Age of Imprisonment](dm/games/04003F40232DE000/README.md), [Mario Kart World](dm/games/0400C3F00006E000/README.md) and [Mario Tennis Fever](dm/games/0400D4201C6EA000/README.md) play on the Mac, packed from one [`.nup` file](#switch-2-games) or a dump of the game; iPhone and iPad are untested.
 
-## Acknowledgements
+## Discussions
 
-This project is built on other people's work ([licenses](dm/third_party/README.md)):
-
-- **[d2r-mobile](https://github.com/jhaizhou-ops/d2r-mobile)** (MIT) developed this native-execution approach, for Diablo II: Resurrected. nxnative started as a copy of its generic parts: the NSO rewriter, the host that stands in for Horizon, the NVN-on-Metal layer and the iOS app shell. Fixes go both ways.
-- **Ryujinx** (MIT): its shader translator (`Ryujinx.Graphics.Shader`, `Ryujinx.Common` and `Spv.Generator` 1.3.2, in `dm/third_party/ryujinx` with a few fixes listed in [its README](dm/third_party/ryujinx/README.md)) turns the games' shaders into SPIR-V. Its emulation of the kernel and system services is also a reference when the host's behaviour is in doubt.
-- **[Atmosphère](https://github.com/Atmosphere-NX/Atmosphere)**: its kernel, mesosphère, is the reference for Horizon's synchronization semantics (address arbiter, condition variables).
-- **[LibHac](https://github.com/Thealexbarney/LibHac)**: reads NSPs and layers updates over the base game in `dm/tools/nx_extract`.
-- **[SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross)**: SPIR-V to Metal Shading Language.
-- **[glslang](https://github.com/KhronosGroup/glslang)** compiles the GLSL of OpenGL games to SPIR-V for it.
-- **[MacNativeGames](https://github.com/ly05010419/MacNativeGames)** (MIT): the GPU widening of 8-bit indices and in-pass clears in `dm/gfx/nvn/nvn_mtl.m`, and the visibility-counter lowering in the shader translator.
+Questions, how a game runs on your Mac or iPhone, and ideas go in [Discussions](https://github.com/seedds/nxnative/discussions); [Issues](https://github.com/seedds/nxnative/issues) are for bugs, with the log. Ocarina of Time's performance (frame rate, resolution, which Macs hold 60 fps) is followed in [Ocarina of Time: state on main](https://github.com/seedds/nxnative/discussions/1789).
 
 ## How to play
 
@@ -206,7 +198,7 @@ To play on the Mac instead, add `--platform mac-app`: you get a Mac app of the g
 
 Install the IPA on your iPhone or iPad with a sideloading tool such as AltStore, Sideloadly or LiveContainer. If your tool offers **Increased Memory Limit**, turn it on: the bigger games need it.
 
-Game too big to install? Build again with `--romfs separate`, and run the command the script prints once to copy the game files to your phone ([Quick reinstalls](docs/development.md#quick-reinstalls)).
+Game too big to install? Build again with `--romfs separate`, and run the command the script prints once to copy the game files to your phone ([Quick reinstalls](docs/development.md#quick-reinstalls)). With AltServer, also add `--shader-files`: it cannot install a file of 2 GiB or more.
 
 Controls, saves and settings: [Playing](docs/playing.md).
 
@@ -487,9 +479,14 @@ Under a game, "60 fps with 1.2.0" means it runs at 60 fps (30 on the console) wi
 <td align="center" valign="top" width="33%"><img src="docs/images/okami-hd.jpg" width="256" alt="ŌKAMI HD"><br><small><b><a href="dm/games/0100276009872000/README.md">ŌKAMI HD</a></b></small></td>
 </tr>
 <tr>
-<td align="center" valign="top" width="33%"><img src="docs/images/minecraft-dungeons-ii.jpg" width="256" alt="Minecraft Dungeons II"><br><small><b><a href="dm/games/0100A7C01B792000/README.md">Minecraft Dungeons II</a></b></small></td>
+<td align="center" valign="top" width="33%"><img src="docs/images/minecraft-dungeons-ii.jpg" width="256" alt="Minecraft Dungeons II"><br><small><b><a href="dm/games/0100A7C01B792000/README.md">Minecraft Dungeons II</a></b><br>60 fps, up to 120 on the Mac</small></td>
 <td align="center" valign="top" width="33%"><img src="docs/images/sonic-superstars.jpg" width="256" alt="Sonic Superstars"><br><small><b><a href="dm/games/01008F701C074000/README.md">Sonic Superstars</a></b></small></td>
 <td align="center" valign="top" width="33%"><img src="docs/images/dragon-ball-sparking-zero.jpg" width="256" alt="DRAGON BALL: Sparking! ZERO"><br><small><b><a href="dm/games/010035F022078000/README.md">DRAGON BALL: Sparking! ZERO</a></b><br>60 fps, up to 120 on the Mac</small></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="33%"><img src="docs/images/romance-of-the-three-kingdoms-xiv.jpg" width="256" alt="ROMANCE OF THE THREE KINGDOMS XIV"><br><small><b><a href="dm/games/0100ED7012DB2000/README.md">ROMANCE OF THE THREE KINGDOMS XIV</a></b></small></td>
+<td align="center" valign="top" width="33%"><img src="docs/images/the-rogue-prince-of-persia.jpg" width="256" alt="The Rogue Prince of Persia"><br><small><b><a href="dm/games/01008D9022462000/README.md">The Rogue Prince of Persia</a></b><br>60 fps, up to 120 on the Mac</small></td>
+<td></td>
 </tr>
 </table>
 <!-- end of gallery -->
@@ -497,6 +494,18 @@ Under a game, "60 fps with 1.2.0" means it runs at 60 fps (30 on the console) wi
 ### For developers
 
 [How it works](docs/development.md) · [Game notes](dm/games/README.md#games) · [Bring-up and debugging](docs/agents/README.md) · [Front ends](docs/frontends.md) · [Contributing](CONTRIBUTING.md)
+
+### Acknowledgements
+
+This project is built on other people's work ([licenses](dm/third_party/README.md)):
+
+- **[d2r-mobile](https://github.com/jhaizhou-ops/d2r-mobile)** (MIT) developed this native-execution approach, for Diablo II: Resurrected. nxnative started as a copy of its generic parts: the NSO rewriter, the host that stands in for Horizon, the NVN-on-Metal layer and the iOS app shell. Fixes go both ways.
+- **Ryujinx** (MIT): its shader translator (`Ryujinx.Graphics.Shader`, `Ryujinx.Common` and `Spv.Generator` 1.3.2, in `dm/third_party/ryujinx` with a few fixes listed in [its README](dm/third_party/ryujinx/README.md)) turns the games' shaders into SPIR-V. Its emulation of the kernel and system services is also a reference when the host's behaviour is in doubt.
+- **[Atmosphère](https://github.com/Atmosphere-NX/Atmosphere)**: its kernel, mesosphère, is the reference for Horizon's synchronization semantics (address arbiter, condition variables).
+- **[LibHac](https://github.com/Thealexbarney/LibHac)**: reads NSPs and layers updates over the base game in `dm/tools/nx_extract`.
+- **[SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross)**: SPIR-V to Metal Shading Language.
+- **[glslang](https://github.com/KhronosGroup/glslang)** compiles the GLSL of OpenGL games to SPIR-V for it.
+- **[MacNativeGames](https://github.com/ly05010419/MacNativeGames)** (MIT): the GPU widening of 8-bit indices and in-pass clears in `dm/gfx/nvn/nvn_mtl.m`, and the visibility-counter lowering in the shader translator.
 
 ### License
 

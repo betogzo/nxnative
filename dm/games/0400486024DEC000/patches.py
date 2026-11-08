@@ -1,11 +1,12 @@
-# The Legend of Zelda: Ocarina of Time (0400486024DEC000): the rewriter's patches of this game's own builds. dm/tools/patch_nso.py loads every profile's patches.py and applies those of a
-# module's NSO build ID; CUTS and FRAME_STEP as described there ("Registered patches"). From the flaviopz/nxnative fork (Flávio Pereira), measured on an M4 MacBook Air.
+# The Legend of Zelda: Ocarina of Time (0400486024DEC000): the rewriter's patches of this game's own code. dm/tools/patch_nso.py loads every profile's patches.py;
+# MATCH_FRAME_STEP as described there ("Registered patches"). Patches of Nintendo SDK module builds are in dm/tools/sdk_patches.py
 from nso_asm import ADRP, B
 
+# Two cuts of v131072's main, from the flaviopz/nxnative fork (Flávio Pereira), measured on an M4 MacBook Air
 CUTS = {
     # The movie player's choice of renderer: the branch it takes for a movie with no NDVE resource, always. Movies then go through its plain nv12decode program instead of nn::ndve's
     # 22 compute shaders, which cost about 29 ms of GPU a frame on an M4 MacBook Air: with them the game cannot hold 60 fps during a movie, and its 60 fps movies, taken one picture
-    # per frame, play slow with the narration and subtitles behind (game.tsv movie_fps 60). The pictures are the movie's own 1080p ones, not enhanced
+    # per frame, play slow with the narration and subtitles behind (game.tsv movie_fps 60). The pictures are the movie's own 1080p ones, not enhanced.
     # gsys::ModelResourceMgr's shared GPU heap (main+0xf3b720, from the config key ModelResourceMgrGpuHeap): 16 pools of 1 MiB, trimmed to fit, that hold every model's MatBlock and DisplayList.
     # In Hyrule Field it filled (no free byte, 16 of 16 pools used, probe at main+0x436f24); main+0x502050's false return is ignored and the next material buffer is built on a NULL pool (crash).
     # Twice the configured size (32 pools); costs 16 MiB. x23 = size + 0xfffff -> 2*size + 0xfffff
@@ -13,52 +14,75 @@ CUTS = {
                                          (0xf3b760, '3700088b', '1705018b', 'model resource GPU heap: twice the configured size')],
 }
 
-
-# Frame step and render scale, as Tears of the Kingdom's (same engine). The game steps its time by 60 / its integer fps (timing +0x58, read at main+0x3b4eadc and main+0x6e6c98; the clock
-# main+0x3b4e300) and keeps that at 60 whatever the frame rate: on a Mac that renders 27 fps it ran at 45% speed, and cutscene speech drifted from the picture. The stub replaces the picker's
-# tail call in main+0x4dbd60: integer fps = 60 / the host's step in vsyncs (state +0x20), and the vsyncs stepped are counted (+0x30). Target 0 (state +0, a float; any non-zero bits are a
-# target) or no step decided yet: the original picker
+# The game's frame ratio. Once a frame the function at main+0x6e6be0 (v131072) divides its base rate (60.0, or 30.0 while bit 0 of [x21+0x24f] is set) by the int frame rate at
+# [x21+0x2c8] (fdiv s8,s1,s0 at +0xe4) and hands the result to the time object (main+0x3b4e300: ratio at +0x10, 1 / ratio at +0x14, round(60 / ratio) at +0x1c), which the game
+# steps by; the frame's own time never enters it, so a frame that takes two vsyncs at rate 60 plays at half speed. The stub gives the ratio the host's step instead: step × base / 60
+# (the division's value when the host keeps frames 60 / rate vsyncs), and counts the vsyncs stepped. Until the host has decided a step, and at fps_target 0, the division runs.
+# s0 and x16 / x17 are free there (s0 is written again on every path before it is read; the function uses neither x16 nor x17); s1 keeps the base rate.
+# Lichii (a GPL emulator; only the fact was taken) found the division (its notes: main+0x6E6CC4, 60 / [x21+0x2C8])
 def frame_step(ctx):
-    here, emit, site, put, S = ctx.here, ctx.emit, ctx.site, ctx.put, ctx.state
-    site(0x4dbd94, '73ccd914')
-    start = here(); emit(ADRP(16, here(), S))
-    for w in (0xb9400209,   # ldr w9,[x16]           target fps (float bits)
-              0x34000149,   # cbz w9,off (+10)       target 0: the original picker
-              0xb9402209,   # ldr w9,[x16,#0x20]     step in vsyncs
-              0x34000109,   # cbz w9,off (+8)        not decided yet
-              0x5280078a,   # mov w10,#60
-              0x1ac9094a,   # udiv w10,w10,w9
-              0xb900580a,   # str w10,[x0,#0x58]     integer fps
-              0xf9401a0b,   # ldr x11,[x16,#0x30]
-              0x8b29416b,   # add x11,x11,w9,uxtw
-              0xf9001a0b,   # str x11,[x16,#0x30]    vsyncs stepped
-              0xd65f03c0):  # ret
+    here, emit, fs_site, fs_put, FS_STATE_OFF, base = ctx.here, ctx.emit, ctx.site, ctx.put, ctx.state, ctx.base
+    site = base + 0xe4
+    fs_site(site, '2818201e')   # fdiv s8,s1,s0
+    start = here(); emit(ADRP(16, here(), FS_STATE_OFF))
+    for w in (0xb9400211,   # ldr w17,[x16]          target fps (0 = off)
+              0x340001b1,   # cbz w17,orig (+13)
+              0xb9402211,   # ldr w17,[x16,#0x20]    step in vsyncs
+              0x34000171,   # cbz w17,orig (+11)     not decided yet
+              0x1e230220,   # ucvtf s0,w17
+              0xf9401a10,   # ldr x16,[x16,#0x30]
+              0x8b110210):  # add x16,x16,x17
         emit(w)
-    emit(B(here(), 0x3b4ef60))   # off: the original tail call
-    put(0x4dbd94, [B(0x4dbd94, start)], 'frame step from the host in whole vsyncs (target 0 = original picker)')
-    # The 3D views' size: main+0x654e70 computes it on every size path; the stub scales width and height (s0, s1) by the host's render scale (state +0x10) when it is above 0, which also
-    # fixes the size the game's dynamic resolution would move. 1.0 = the original
-    site(0x654efc, '4918231e')
-    start = here(); emit(ADRP(10, here(), S))
-    for w in (0xbd401146,   # ldr s6,[x10,#0x10]     render scale
-              0x1e2020c8,   # fcmp s6,#0.0
-              0x5400006d,   # b.le +12
-              0x1e260800,   # fmul s0,s0,s6
-              0x1e260821,   # fmul s1,s1,s6
-              0x1e231849):  # fdiv s9,s2,s3          the original instruction
+    emit(ADRP(17, here(), FS_STATE_OFF))
+    for w in (0xf9001a30,   # str x16,[x17,#0x30]    vsyncs stepped
+              0x1e210808,   # fmul s8,s0,s1          step × base rate
+              0x52a84e10,   # mov w16,#0x42700000    60.0
+              0x1e270200,   # fmov s0,w16
+              0x1e201908):  # fdiv s8,s8,s0          / 60
         emit(w)
-    emit(B(here(), 0x654f00))
-    put(0x654efc, [B(0x654efc, start)], 'view render size x the host render scale (1.0 = original)'); ctx.render_scale = 1
+    emit(B(here(), site + 4))
+    emit(0x1e201828); emit(B(here(), site + 4))   # orig: fdiv s8,s1,s0; back
+    fs_put(site, [B(site, start)], 'frame ratio: the host\'s step × base rate / 60 instead of base rate / the game\'s frame rate (state page target fps; 0 = the game\'s ratio)')
+    dynamic_resolution(ctx)
 
+# The game's dynamic resolution (game__gfx__DynamicResolutionParam: LoadThreshold, ReduceCounterMax, IncreaseCounterMax and a list of levels, each a ResolutionReduceScale and a
+# Priority). Its controller's update (main+0x805aa0, v131072) reads the frame's GPU time, subtracts what its cost model predicts at the current size and keeps the residual's trend;
+# the level function (main+0x8065e0) adds that residual to the model's cost at each level and returns the best level that stays under the threshold, 0 (the full size, 1536x864)
+# when the current size does; the update moves to a lower level after ReduceCounterMax frames that ask for it and back up after IncreaseCounterMax. Its scale divides the 3D views.
+# On the Mac the GPU holds 1536x864 within a 60 fps frame, yet the controller sat at 683x384 for minutes after a loading screen (game note, Dynamic resolution). With
+# DM_DYNAMIC_RESOLUTION 0 (the default; state +0x40 0) the stub makes the level function return 0, so the update climbs to full resolution and stays; 1 runs the game's function.
+# The function is a leaf: x16 / x17 are free at its entry, and w0 is its only result (the original also stores the predicted cost at +0x18, which only this function and the update's
+# own decision read)
+def dynamic_resolution(ctx):
+    here, emit, fs_site, fs_put, FS_STATE_OFF = ctx.here, ctx.emit, ctx.site, ctx.put, ctx.state
+    site = ctx.others.get('dynamic resolution')
+    if site is None: return   # not found in this build (a red line from the locator): the game's own dynamic resolution
+    fs_site(site, '017c40bd')   # ldr s1,[x0,#0x7c]
+    start = here(); emit(ADRP(16, here(), FS_STATE_OFF))
+    for w in (0xb9404210,   # ldr w16,[x16,#0x40]    dynamic resolution on
+              0x35000070,   # cbnz w16,orig (+3)
+              0x2a1f03e0,   # mov w0,wzr             level 0: full resolution
+              0xd65f03c0,   # ret
+              0xbd407c01):  # orig: ldr s1,[x0,#0x7c]
+        emit(w)
+    emit(B(here(), site + 4))
+    fs_put(site, [B(site, start)], 'dynamic resolution level: 0 (full resolution) unless state +0x40 (DM_DYNAMIC_RESOLUTION) runs the game\'s choice')
+    ctx.capabilities.add('DYNAMIC_RESOLUTION')
 
-FRAME_STEP = {'e0f3ccfaf50065ae4ea01eb5aeb13b1a': frame_step}
+MATCH_FRAME_STEP = {'main': [
+    {'name': 'frame ratio from the host\'s step', 'size': 0x9b4, 'fingerprints': ['6ae2aff5344d14568e4dbaf93455e2d8278384bf892ed6c6eca87fef98fbcd1d'], 'stub': frame_step,   # v131072 main+0x6e6be0
+     'others': {'dynamic resolution': {'size': 0x294, 'fingerprints': ['7af6ceb0aedf8e0c17dc08ce17fcd6a7cba6d394a0d09e3b504c6d668dc418e7']}}},   # v131072 main+0x8065e0
+]}
 
 BINDING = [
     {'what': 'movie renderer: always the plain nv12decode path, no NDVE', 'now': 'build', 'goal': 'game', 'purpose': 'frame rate',
      'why': "a branch in the game's own movie player: NDVE's 22 compute shaders cost about 29 ms of GPU a frame on an M4, so the 60 fps movies could not play at 60 and their narration fell behind"},
     {'what': 'gsys ModelResourceMgr shared GPU heap: twice the configured size', 'now': 'build', 'goal': 'game', 'purpose': 'memory',
      'why': "the size comes from the game's own config key ModelResourceMgrGpuHeap; in Hyrule Field its 16 pools filled and the next material buffer was built on a NULL pool (crash)"},
-    {'what': 'frame step and render scale, as Tears of the Kingdom', 'now': 'build', 'goal': 'game', 'purpose': 'frame rate',
-     'why': "the game steps its time by 60 / its own fps value and stays locked at 60: at 27 fps on a Mac it ran at 45% speed",
-     'blocked': 'frame-step stubs have no function-matched form yet'},
+    {'what': 'frame ratio from the host\'s step', 'now': 'game', 'goal': 'game', 'purpose': 'frame rate',
+     'why': "the game's own frame-ratio division, found by its function's fingerprint on any build that keeps the function",
+     'checked': 'v131072 main: one function with this fingerprint, the site and its free registers read by disassembly (2026-11-08)'},
+    {'what': 'dynamic resolution held at full size', 'now': 'game', 'goal': 'game', 'purpose': 'rendering',
+     'why': "the game's own dynamic-resolution level function, found by its function's fingerprint on any build that keeps the function; switchable (DM_DYNAMIC_RESOLUTION)",
+     'checked': 'v131072 main: one function with this fingerprint (a leaf, x16 / x17 free), its callers and the controller read by disassembly (2026-11-08)'},
 ]
