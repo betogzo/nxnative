@@ -1,6 +1,5 @@
-"""A non-finite rgb at alpha 0 returned as 0 by main0 (dmsh_build.py blend_zero), as NVIDIA's blender takes a zero factor times anything: every return of main0 guarded, the shared body
+"""A non-finite rgb at alpha 0 returned as 0 by main0 (dmsh_rewrite.py blend_zero), as NVIDIA's blender takes a zero factor times anything: every return of main0 guarded, the shared body
 and the integer entry points left as they are, integer outputs never touched, a second pass a no-op, and the result compiled by Metal's compiler when it is there."""
-import ast
 from pathlib import Path
 import re
 import shutil
@@ -11,14 +10,9 @@ import unittest
 
 TOOLS = Path(__file__).resolve().parents[1] / 'tools'
 sys.path.insert(0, str(TOOLS))
-import dmsh_side   # noqa: E402
+import dmsh_rewrite, dmsh_side   # noqa: E402
 
-tree = ast.parse((TOOLS / 'dmsh_build.py').read_text())
-selected = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name == 'blend_zero')
-            or (isinstance(n, ast.Assign) and any(getattr(t, 'id', None) == 'BLEND_ZERO' for t in n.targets))]
-scope = {'re': re, 'dmsh_side': dmsh_side}
-exec(compile(ast.Module(body=selected, type_ignores=[]), str(TOOLS / 'dmsh_build.py'), 'exec'), scope)
-blend_zero = scope['blend_zero']
+blend_zero = dmsh_rewrite.blend_zero
 
 HEAD = '#include <metal_stdlib>\n#include <simd/simd.h>\n\nusing namespace metal;\n\n'
 # a light shader's shape as spirv-cross writes it: two colour outputs, an early return that writes zeros, a weighted average divided by its weight sum
@@ -111,8 +105,8 @@ class BlendZero(unittest.TestCase):
         self.assertEqual(az((nan, inf, 0.5, 0.0)), (0.0, 0.0, 0.5, 0.0))
         r = az((nan, 1.0, 2.0, 1.0)); self.assertTrue(r[0] != r[0]); self.assertEqual(r[1:], (1.0, 2.0, 1.0))   # alpha 1: the blender keeps a NaN too
         self.assertEqual(az((0.25, -3.0, 7.0, 0.0)), (0.25, -3.0, 7.0, 0.0))   # finite at alpha 0: unchanged
-        self.assertIn('c.w == 0.0f', scope['BLEND_ZERO'])
-        self.assertIn('isnan(c.xyz) || isinf(c.xyz)', scope['BLEND_ZERO'])
+        self.assertIn('c.w == 0.0f', dmsh_rewrite.BLEND_ZERO)
+        self.assertIn('isnan(c.xyz) || isinf(c.xyz)', dmsh_rewrite.BLEND_ZERO)
 
     @unittest.skipUnless(shutil.which('xcrun'), 'no Metal compiler')
     def test_compiles(self):
