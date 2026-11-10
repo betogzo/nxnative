@@ -805,9 +805,6 @@ def finish(key, w, j, c1):
     shared = dmsh_side.shared_body(src) if fu or fd else None   # they call main0's body; fs_uint and fs_dual give none for a main0 whose shape it does not know
     if shared: plain = src; open(msl, 'w').write(shared + (fu or '') + (fd or ''))
     else: fu = fd = None
-    if j['stage'] == 'ps':   # main0 returns a non-finite rgb at alpha 0 as 0, as NVIDIA's blender takes a zero factor (see blend_zero); after the entry points that share main0's body
-        bz, nbz = dmsh_rewrite.blend_zero(open(msl).read())
-        if nbz: open(msl, 'w').write(bz)
     try: binds = dmsh_reflect.reflect(key, mesh['kind'] if mesh else j['stage'], src, res)   # before the compile: a pixel shader's readable-tile version needs its texture slots (ps_libraries)
     except ValueError as e: return 'reflection failed', str(e)[:160], None
     side, lost = {}, []
