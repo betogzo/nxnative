@@ -4,7 +4,7 @@
 >
 > **This fork is focused on one game: the Switch 2 remake of The Legend of Zelda: Ocarina of Time, on the Mac.** Its changes were made and tested for that game only. Other games have not been tested with this fork: some changes (the movie pacing and the controller button overlay in the host, the build script's options) apply to every game and may behave differently there. For any other game, use the upstream project, [seedds/nxnative](https://github.com/seedds/nxnative).
 >
-> This is a personal fork of [seedds/nxnative](https://github.com/seedds/nxnative) (kept up to date with its `main`; last merged at `028a2631`) with the changes needed to play **The Legend of Zelda: Ocarina of Time** (Switch 2, `0400486024DEC000`, update v131072) smoothly on Macs slower than the M6 the upstream profile was measured on. It was tested on a **MacBook Air M4 (16 GB, fanless)**. It is not affiliated with the upstream project or with Nintendo, and no game files are included: you need your own dump of the game.
+> This is a personal fork of [seedds/nxnative](https://github.com/seedds/nxnative) (kept up to date with its `main`; last merged at `04811a63`) with the changes needed to play **The Legend of Zelda: Ocarina of Time** (Switch 2, `0400486024DEC000`, update v131072) smoothly on Macs slower than the M6 the upstream profile was measured on. It was tested on a **MacBook Air M4 (16 GB, fanless)**. It is not affiliated with the upstream project or with Nintendo, and no game files are included: you need your own dump of the game.
 >
 > ### What this fork changes
 >
@@ -18,6 +18,17 @@
 > | **`--icon <image>`** (`scripts/build_ipa_from_nsp.py`) | Gives the app an icon of your choice. A NUP usually has no icon data, which left the app's icon blank. |
 > | **Movies at 60 fps, in step with their narration** (`patches.py`, `movie_fps 60` in `game.tsv`, [`dm/host/hle_codec_video.c`](dm/host/hle_codec_video.c)) | The game's movies are 60 fps and its player takes one picture per frame, with the narration and subtitles counting frames too: at 30 fps the opening played at half speed, its sound and narration out of step. Movies now play at 60 while the game stays at 30: the player skips the NDVE enhancement networks (about 29 ms of GPU a frame on an M4), and the host holds 60 fps only while a movie plays. If a Mac still cannot take every picture, the host passes over the ones already behind the movie's clock (`DM_MOVIE_PACE=0` turns that off). |
 > | **Pipeline archive mapped from an external drive** (upstream PR [#1817](https://github.com/seedds/nxnative/pull/1817) by Mariano Abad, picked ahead of its merge) | With the app on a USB drive, macOS read the 3 GB pipeline archive bundled with the app into memory for the whole run. It is now mapped: about 3 GB less memory (13.5 → 10 GB measured here), so an app on an external drive needs no copy to the internal one for memory's sake. |
+>
+> #### Upstream fixes picked ahead of their merge
+>
+> These are open pull requests on [seedds/nxnative](https://github.com/seedds/nxnative), each kept as its author's commit and tested in play here. When upstream merges one, the next merge takes upstream's version; if upstream takes another route, this fork follows it.
+>
+> | Pull request | What it fixes |
+> |---|---|
+> | [#2030](https://github.com/seedds/nxnative/pull/2030) (humanperzeus) | White clouds and haze over the ferns and the path between Kokiri Forest and Hyrule Field: a light shader writes NaN at alpha 0, which NVIDIA's blender drops and Apple's stored ([issue #1839](https://github.com/seedds/nxnative/issues/1839)). Chain change: a full build. |
+> | [#2077](https://github.com/seedds/nxnative/pull/2077) (Roan de Graaf) | Ground turning into crossing stripes ("plaid") tile by tile after a few area changes, until a restart (seen at the Castle Town bridge). |
+> | [#2022](https://github.com/seedds/nxnative/pull/2022) and [#2075](https://github.com/seedds/nxnative/pull/2075) (sleepyeyedjoe, Adam Kratch) | Large models going black for a frame, twice, and patches of scenery drawing dark for one frame when the game streams in a sharper texture ([issue #1969](https://github.com/seedds/nxnative/issues/1969)). |
+> | [#2085](https://github.com/seedds/nxnative/pull/2085) (Pedro Nascimento) | About 9 fps in Castle Town on a 16 GB Mac: a log statistic made dozens of 80 MB buffers that Metal counts as GPU memory (16.2 GB allocated there before, 6.9 GB after; [issue #2068](https://github.com/seedds/nxnative/issues/2068)). |
 >
 > <img src="docs/images/flaviopz-oot-buttons.jpg" width="540" alt="Ocarina of Time's basic controls screen with PlayStation and Xbox buttons">
 >
@@ -33,6 +44,7 @@
 > | upstream `main` | 40–58 fps, uneven | GPU-bound, game at about 75% speed, 14.5 GB of memory with no headroom |
 > | **this fork**, 30 fps, render scale 0.85 (before upstream's full-resolution and frame-step changes) | **locked 30 fps** | frame p95 34 ms, 0–1 frames dropped per 300, GPU about 28 ms per frame, CPU about 130% |
 > | **this fork** now (upstream `37f076a5` + the changes above), 30 fps, full resolution | **30 fps**, 0 frames dropped in most 300-frame windows | GPU p50 22 / p95 28 ms per frame in a busy area, about 10 GB of memory; no flickering dark specks or pale patches (fixed upstream). Short freezes (0.5–1.2 s) the first time some foliage and shadow (task / mesh) pipelines appear after a new build: Metal compiles them then and keeps them, so they do not come back on later runs |
+> | **this fork** now (upstream `04811a63` + the pull requests above), 30 fps, full resolution, Castle Town | **30 fps** | GPU p50 26–27 ms per frame, 6.9 GB of GPU memory allocated (16.2 GB and about 9 fps before #2085) |
 >
 > Recommended launcher settings on a 16 GB M4: Console mode **Handheld**, Frame rate **30**, Dynamic resolution **off** (full resolution; turn it on if the frame rate drops), Encode thread **on**, Display **Fullscreen**, Game Mode left off (macOS Game Mode holds the GPU at its lowest clock). Close other apps while playing: the game takes about 10 GB.
 >
