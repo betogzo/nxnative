@@ -4,7 +4,7 @@
 >
 > **This fork is focused on one game: the Switch 2 remake of The Legend of Zelda: Ocarina of Time, on the Mac.** Its changes were made and tested for that game only. Other games have not been tested with this fork: some changes (the movie pacing and the controller button overlay in the host, the build script's options) apply to every game and may behave differently there. For any other game, use the upstream project, [seedds/nxnative](https://github.com/seedds/nxnative).
 >
-> This is a personal fork of [seedds/nxnative](https://github.com/seedds/nxnative) (kept up to date with its `main`; last merged at `fd8188c9`) with the changes needed to play **The Legend of Zelda: Ocarina of Time** (Switch 2, `0400486024DEC000`, update v131072) smoothly on Macs slower than the M6 the upstream profile was measured on. It was tested on a **MacBook Air M4 (16 GB, fanless)**. It is not affiliated with the upstream project or with Nintendo, and no game files are included: you need your own dump of the game.
+> This is a personal fork of [seedds/nxnative](https://github.com/seedds/nxnative) (kept up to date with its `main`; last merged at `adaff735`) with the changes needed to play **The Legend of Zelda: Ocarina of Time** (Switch 2, `0400486024DEC000`, update v131072) smoothly on Macs slower than the M6 the upstream profile was measured on. It was tested on a **MacBook Air M4 (16 GB, fanless)**. It is not affiliated with the upstream project or with Nintendo, and no game files are included: you need your own dump of the game.
 >
 > ### What this fork changes
 >
@@ -25,7 +25,7 @@
 >
 > | Pull request | What it fixes |
 > |---|---|
-> | [#2030](https://github.com/seedds/nxnative/pull/2030) (humanperzeus) | White clouds and haze over the ferns and the path between Kokiri Forest and Hyrule Field: a light shader writes NaN at alpha 0, which NVIDIA's blender drops and Apple's stored ([issue #1839](https://github.com/seedds/nxnative/issues/1839)). Chain change: a full build. |
+> | [#2030](https://github.com/seedds/nxnative/pull/2030) (humanperzeus) | White clouds and haze over the ferns and the path between Kokiri Forest and Hyrule Field: a light shader writes NaN at alpha 0, which NVIDIA's blender drops and Apple's stored ([issue #1839](https://github.com/seedds/nxnative/issues/1839)). Its rebuilt version (`f67642dc`, with the review fix that reaches the 9,265 pixel shaders whose `main0` shares its body). Chain change: a full build. |
 >
 > Picked here earlier and since merged upstream (this fork now has upstream's version): [#2077](https://github.com/seedds/nxnative/pull/2077) (Roan de Graaf; ground turning into crossing stripes, "plaid", after a few area changes), [#2022](https://github.com/seedds/nxnative/pull/2022) and [#2075](https://github.com/seedds/nxnative/pull/2075) (sleepyeyedjoe, Adam Kratch; models and scenery drawing black or dark for a frame when the game streams in a texture), [#2085](https://github.com/seedds/nxnative/pull/2085) (Pedro Nascimento; about 9 fps in Castle Town on a 16 GB Mac, 16.2 GB of GPU memory allocated there before, 6.9 GB after).
 >
